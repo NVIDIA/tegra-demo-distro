@@ -1,0 +1,96 @@
+name: Sync upstream OE4T branches
+
+# Scheduled workflows only run from the default branch. Keep this file on
+# `main` (NVIDIA control branch) and set `main` as the repository default.
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream OE4T
+        run: |
+          git remote add upstream https://github.com/OE4T/tegra-demo-distro.git 2>/dev/null || \
+            git remote set-url upstream https://github.com/OE4T/tegra-demo-distro.git
+          git fetch upstream --prune
+          git fetch origin --prune
+
+      - name: Mirror allowlisted upstream branches to origin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Only sync these OE4T lines. Keep NVIDIA-only branches
+          # (`main`, `master+*`) out of this list.
+          BRANCHES=(
+            master
+            wrynose
+            whinlatter
+            walnascar
+            scarthgap
+            nanbield
+          )
+
+          synced=0
+          skipped=0
+          created=0
+          updated=0
+
+          for branch in "${BRANCHES[@]}"; do
+            if ! git rev-parse --verify "refs/remotes/upstream/${branch}" >/dev/null 2>&1; then
+              echo "missing upstream: ${branch}"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            upstream_sha="$(git rev-parse "refs/remotes/upstream/${branch}")"
+
+            if ! git rev-parse --verify "refs/remotes/origin/${branch}" >/dev/null 2>&1; then
+              echo "create: ${branch} -> ${upstream_sha}"
+              git push origin "refs/remotes/upstream/${branch}:refs/heads/${branch}"
+              created=$((created + 1))
+              synced=$((synced + 1))
+              continue
+            fi
+
+            origin_sha="$(git rev-parse "refs/remotes/origin/${branch}")"
+            if [[ "${origin_sha}" == "${upstream_sha}" ]]; then
+              echo "up-to-date: ${branch}"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            if git merge-base --is-ancestor "${origin_sha}" "${upstream_sha}"; then
+              echo "fast-forward: ${branch} ${origin_sha:0:8}..${upstream_sha:0:8}"
+              git push origin "refs/remotes/upstream/${branch}:refs/heads/${branch}"
+            else
+              # Mirror policy: OE4T is source of truth for shared branch names.
+              echo "force-with-lease (diverged mirror): ${branch} ${origin_sha:0:8}..${upstream_sha:0:8}"
+              git push --force-with-lease="refs/heads/${branch}:${origin_sha}" \
+                origin "refs/remotes/upstream/${branch}:refs/heads/${branch}"
+            fi
+            updated=$((updated + 1))
+            synced=$((synced + 1))
+          done
+
+          echo "summary: synced=${synced} created=${created} updated=${updated} skipped=${skipped}"
