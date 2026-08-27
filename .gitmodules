@@ -10,10 +10,6 @@
 	path = repos/meta-tegra
 	url = https://github.com/OE4T/meta-tegra.git
 	branch = master
-[submodule "repos/meta-tegra-community"]
-	path = repos/meta-tegra-community
-	url = https://github.com/OE4T/meta-tegra-community
-	branch = master
 [submodule "repos/bitbake"]
 	path = repos/bitbake
 	url = https://github.com/openembedded/bitbake.git
@@ -25,4 +21,11 @@
 [submodule "repos/meta-swupdate"]
 	path = repos/meta-swupdate
 	url = https://github.com/sbabic/meta-swupdate.git
+	branch = master
+[submodule "repos/meta-tegra-community"]
+	path = repos/meta-tegra-community
+	url = https://github.com/NVIDIA/meta-tegra-community.git
+[submodule "repos/meta-iceoryx2"]
+	path = repos/meta-iceoryx2
+	url = https://github.com/nvidia-holoscan/meta-iceoryx2.git
 	branch = master
